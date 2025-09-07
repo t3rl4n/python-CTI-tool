@@ -201,7 +201,7 @@ def get_gemini_analysis(prompt, api_key):
     """Gets a natural language explanation from the Google Gemini API."""
     if not api_key: return "[AI ANALYSIS UNAVAILABLE: Gemini API Key not provided]"
     try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
         payload = {
   "contents": [
     {
