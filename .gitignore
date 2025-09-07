@@ -1,1 +1,16 @@
+__pycache__/
+*.pyc
+
+# Virtual Environment
 .venv/
+
+# Secrets
+.env
+
+# Generated Reports
+reports/
+
+# IDE files
+.vscode/
+.idea/
+
