@@ -297,7 +297,7 @@ def create_report(suspicious_ips, log_stats, api_keys):
 def main():
     """The main function to orchestrate the log analysis workflow."""
     print_banner()  # Show the banner at startup
-    print("--- Azerbaijan Cybersecurity Center: Log Analysis & CTI Tool ---")
+    print(" Azerbaijan Cybersecurity Center: Log Analysis & CTI Tool ")
 
     if len(sys.argv) != 2:
         print("\n[ERROR] Incorrect usage.\n"
