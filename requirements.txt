@@ -1,2 +1,4 @@
 requests
 google-generativeai
+colorama==0.4.6
+pyfiglet==0.8.post1
