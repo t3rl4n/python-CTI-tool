@@ -199,26 +199,31 @@ def analyze_ips(ip_data, api_keys):
 # --- STAGE 3: EXPLAIN & REPORT ---
 def get_gemini_analysis(prompt, api_key):
     """Gets a natural language explanation from the Google Gemini API."""
-    if not api_key: return "[AI ANALYSIS UNAVAILABLE: Gemini API Key not provided]"
+    if not api_key:
+        return "[AI ANALYSIS UNAVAILABLE: Gemini API Key not provided]"
+    if not prompt.strip():
+        return "[AI ANALYSIS FAILED: Empty prompt]"
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
         payload = {
-  "contents": [
-    {
-      "role": "user",
-      "parts": [{"text": "prompt"}]
-    }
-  ]
-}
-
-        response = requests.post(url, json=payload, timeout=20)
+            "contents": [
+                {
+                    "role": "user",
+                    "parts": [{"text": prompt}]
+                }
+            ]
+        }
+        response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=20)
         response.raise_for_status()
         candidates = response.json().get('candidates', [])
         if candidates and 'content' in candidates[0] and 'parts' in candidates[0]['content']:
             return candidates[0]['content']['parts'][0]['text'].strip()
         return "[AI ANALYSIS FAILED: Unexpected response format]"
-    except requests.RequestException as e: return f"[AI ANALYSIS FAILED: Network error - {e}]"
-    except (KeyError, IndexError): return "[AI ANALYSIS FAILED: Could not parse API response]"
+    except requests.RequestException as e:
+        return f"[AI ANALYSIS FAILED: Network error - {e}]"
+    except (KeyError, IndexError):
+        return "[AI ANALYSIS FAILED: Could not parse API response]"
+
 
 def create_report(suspicious_ips, log_stats, api_keys):
     """Generates a final security report in TXT and Markdown formats."""
