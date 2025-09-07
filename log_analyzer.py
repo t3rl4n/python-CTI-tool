@@ -326,7 +326,6 @@ def create_report(suspicious_ips, log_stats, api_keys):
                     f"{vt['suspicious']} suspicious, "
                     f"{vt['harmless']} harmless, "
                     f"{vt['undetected']} undetected\n"
-                    f"- **Last Analysis Date:** {vt['last_analysis']}\n"
                 )
                 if vt['categories']:
                     categories_str = ", ".join(f"{k}: {v}" for k, v in vt['categories'].items())
