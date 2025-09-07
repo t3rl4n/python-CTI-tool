@@ -1,7 +1,5 @@
-# Single-File Log Analysis & CTI Tool - Definitive Auto-Detect Version
 # This script intelligently detects the log format (Text vs. JSON) and parses accordingly.
 # It combines Log Parsing, CTI Checks, and AI Reporting into one robust tool.
-
 import os
 import re
 import sys
@@ -10,11 +8,29 @@ import requests
 import getpass  # To hide API key input
 from datetime import datetime
 from collections import defaultdict
+from colorama import Fore, Style, init
+import pyfiglet
+import random
+
+# --- Initialize Colorama ---
+init(autoreset=True)
 
 # --- Constants and Thresholds ---
 SUSPICIOUS_SCORE_THRESHOLD = 50
 VT_SUSPICIOUS_THRESHOLD = 2
 MALICIOUS_USER_AGENTS = ['sqlmap', 'nmap', 'hydra', 'nikto', 'wfuzz', 'nessus', 'metasploit']
+
+# --- Fancy Banner ---
+def print_banner():
+    """Displays a colorful ASCII banner for the tool."""
+    colors = [Fore.GREEN, Fore.CYAN, Fore.MAGENTA, Fore.YELLOW]
+    banner_text = pyfiglet.figlet_format("CTI Tool", font="slant")
+    color = random.choice(colors)  # random color every run
+    print(color + banner_text + Style.RESET_ALL)
+    print(Fore.CYAN + "Author : Tarlan" + Style.RESET_ALL)
+    print(Fore.CYAN + "Version: 1.0" + Style.RESET_ALL)
+    print(Fore.CYAN + "Powered by Python + CTI + AI 🤖" + Style.RESET_ALL)
+    print("-" * 60)
 
 # --- STAGE 0: GET API KEYS INTERACTIVELY ---
 def prompt_for_api_keys():
@@ -29,7 +45,6 @@ def prompt_for_api_keys():
     return {"abuseipdb": abuseipdb_key, "virustotal": virustotal_key, "gemini": gemini_key}
 
 # --- STAGE 1: PARSE THE LOG (WITH AUTO-DETECTION) ---
-
 def parse_text_log(line, pattern):
     """Parses a single line from a standard text-based log file."""
     match = pattern.match(line.strip())
@@ -74,13 +89,10 @@ def parse_log_file(filepath):
             stripped_line = line.strip()
             if not stripped_line:
                 continue
-            # A simple but effective heuristic: if a line starts with '{' or contains '{"',
-            # it's very likely a JSON log.
             if stripped_line.startswith('{') or '{"' in stripped_line:
                 log_format = "json"
                 print("[INFO] Auto-detected JSON log format.")
                 break
-            # If it contains IP-like patterns and HTTP methods, it's likely a text log.
             elif re.search(r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}', stripped_line):
                 log_format = "text"
                 print("[INFO] Auto-detected Text log format.")
@@ -95,7 +107,6 @@ def parse_log_file(filepath):
     total_requests, skipped_lines = 0, 0
     status_code_counts = defaultdict(int)
 
-    # Define the regex pattern for text logs here
     text_log_pattern = re.compile(
         r'(?P<ip>\S+)\s(?:\S+\s){2}\[(?P<timestamp>.*?)\]\s"(?P<request>.*?)"\s(?P<status>\d{3})\s(?P<size>\S+)\s".*?"\s"(?P<user_agent>.*?)"'
     )
@@ -114,8 +125,6 @@ def parse_log_file(filepath):
                     continue
 
                 ip, status, ua = parsed_data['ip'], parsed_data['status'], parsed_data['user_agent']
-
-                # Aggregate data
                 ip_data[ip]['total_requests'] += 1
                 if 400 <= status < 500:
                     ip_data[ip]['4xx_errors'] += 1
@@ -145,7 +154,11 @@ def check_abuseipdb(ip, api_key):
     """Queries the AbuseIPDB API for an IP's reputation."""
     if not api_key: return None
     try:
-        response = requests.get('https://api.abuseipdb.com/api/v2/check', headers={'Key': api_key, 'Accept': 'application/json'}, params={'ipAddress': ip}, timeout=10)
+        response = requests.get(
+            'https://api.abuseipdb.com/api/v2/check',
+            headers={'Key': api_key, 'Accept': 'application/json'},
+            params={'ipAddress': ip}, timeout=10
+        )
         response.raise_for_status()
         data = response.json().get('data', {})
         return {'score': data.get('abuseConfidenceScore', 0), 'country': data.get('countryCode', 'N/A')}
@@ -155,7 +168,10 @@ def check_virustotal(ip, api_key):
     """Queries the VirusTotal API for an IP's reputation."""
     if not api_key: return None
     try:
-        response = requests.get(f"https://www.virustotal.com/api/v3/ip_addresses/{ip}", headers={'x-apikey': api_key}, timeout=10)
+        response = requests.get(
+            f"https://www.virustotal.com/api/v3/ip_addresses/{ip}",
+            headers={'x-apikey': api_key}, timeout=10
+        )
         response.raise_for_status()
         stats = response.json().get('data', {}).get('attributes', {}).get('last_analysis_stats', {})
         return {'malicious': stats.get('malicious', 0), 'suspicious': stats.get('suspicious', 0)}
@@ -169,19 +185,19 @@ def analyze_ips(ip_data, api_keys):
     for i, (ip, data) in enumerate(ip_data.items()):
         print(f"  -> Checking IP {i+1}/{total_ips}: {ip}", end='\r')
         reasons = []
-        
+
         abuse_result = check_abuseipdb(ip, api_keys['abuseipdb'])
         vt_result = check_virustotal(ip, api_keys['virustotal'])
-        
+
         if abuse_result and abuse_result['score'] > SUSPICIOUS_SCORE_THRESHOLD:
             reasons.append(f"High AbuseIPDB Score ({abuse_result['score']})")
         if vt_result and (vt_result['malicious'] > 0 or vt_result['suspicious'] > VT_SUSPICIOUS_THRESHOLD):
             reasons.append("VirusTotal Detections")
-        
+
         is_high_priority = any(tool in agent.lower() for agent in data['user_agents'] for tool in MALICIOUS_USER_AGENTS)
         if is_high_priority:
             reasons.append("Malicious User-Agent Detected")
-            
+
         if reasons:
             suspicious_ips.append({
                 'ip': ip,
@@ -191,8 +207,8 @@ def analyze_ips(ip_data, api_keys):
                 'cti_abuse': abuse_result,
                 'cti_vt': vt_result
             })
-            
-    print(" " * 50, end='\r') # Clear the line
+
+    print(" " * 50, end='\r')
     print(f"[SUCCESS] Stage 2 complete. Found {len(suspicious_ips)} suspicious IPs.")
     return suspicious_ips
 
@@ -224,23 +240,22 @@ def get_gemini_analysis(prompt, api_key):
     except (KeyError, IndexError):
         return "[AI ANALYSIS FAILED: Could not parse API response]"
 
-
 def create_report(suspicious_ips, log_stats, api_keys):
     """Generates a final security report in TXT and Markdown formats."""
     print("\n[+] Starting Stage 3: Generating security report...")
     if not os.path.exists('reports'): os.makedirs('reports')
-    
+
     ai_explanation = "No high-risk threats identified to explain."
     if suspicious_ips:
         high_risk_ip = sorted(suspicious_ips, key=lambda x: x.get('high_priority', False), reverse=True)[0]
         prompt1 = f"You are a cybersecurity analyst for a SOC in Azerbaijan. In one simple sentence, explain the threat from IP address {high_risk_ip['ip']}. This IP was flagged for these reasons: {', '.join(high_risk_ip['reasons'])}. Explain it to a non-technical manager."
         ai_explanation = get_gemini_analysis(prompt1, api_keys['gemini'])
-        
+
     prompt2 = f"You are a cybersecurity analyst. Briefly describe any anomalies in the following web server log statistics for a SOC team in Azerbaijan. Total Requests: {log_stats['total_requests']}, Unique IPs: {log_stats['unique_ips']}, Ratio of 404 to 200 status codes: {log_stats['ratio_404_to_200']:.2f}."
     ai_summary = get_gemini_analysis(prompt2, api_keys['gemini'])
-    
+
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-    
+
     report_content = f"""# Cybersecurity Threat Report - {timestamp}
 
 ## AI-Powered Summary
@@ -270,7 +285,7 @@ def create_report(suspicious_ips, log_stats, api_keys):
             if ip_info['cti_vt']:
                 vt = ip_info['cti_vt']
                 report_content += f"- **VirusTotal:** {vt['malicious']} malicious, {vt['suspicious']} suspicious detections\n"
-                
+
     for ext in ['txt', 'md']:
         report_path = os.path.join('reports', f'security_report_{timestamp}.{ext}')
         try:
@@ -281,26 +296,26 @@ def create_report(suspicious_ips, log_stats, api_keys):
 # --- MAIN EXECUTION ---
 def main():
     """The main function to orchestrate the log analysis workflow."""
+    print_banner()  # Show the banner at startup
     print("--- Azerbaijan Cybersecurity Center: Log Analysis & CTI Tool ---")
-    
+
     if len(sys.argv) != 2:
         print("\n[ERROR] Incorrect usage.\n"
               "Please provide the path to the log file.\n"
               "Example: python3 log_analyzer.py /var/log/nginx/access.log")
         sys.exit(1)
-        
+
     log_filepath = sys.argv[1]
-    
+
     api_keys = prompt_for_api_keys()
-    
+
     ip_data, log_stats = parse_log_file(log_filepath)
-    
+
     if ip_data and log_stats:
         suspicious_ips = analyze_ips(ip_data, api_keys)
         create_report(suspicious_ips, log_stats, api_keys)
-        
+
     print("\n[+] Analysis complete. Exiting.")
 
 if __name__ == "__main__":
     main()
-
