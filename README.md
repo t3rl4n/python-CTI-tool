@@ -1,11 +1,3 @@
-<pre> ``` ██╗ ██████╗ ██████╗ █████╗ ███╗ ██╗ █████╗ ██╗ ██╗███████╗ ██║ ██╔═══██╗██╔════╝ ██╔══██╗████╗ ██║██╔══██╗██║ ██║██╔════╝ ██║ ██║ ██║██║ ███╗ ███████║██╔██╗ ██║███████║██║ ██║█████╗ ██║ ██║ ██║██║ ██║ ██╔══██║██║╚██╗██║██╔══██║██║ ██║██╔══╝ ███████╗╚██████╔╝╚██████╔╝██╗██║ ██║██║ ╚████║██║ ██║███████╗██║███████╗ ╚══════╝ ╚═════╝ ╚═════╝ ╚═╝╚═╝ ╚═╝╚═╝ ╚═══╝╚═╝ ╚═╝╚══════╝╚═╝╚══════╝ ``` </pre>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.9%2B-blue" alt="Python">
-  <img src="https://img.shields.io/badge/Status-Active-success" alt="Status">
-  <img src="https://img.shields.io/badge/Security-CTI%20Enhanced-red" alt="Security">
-</p>
-
 ## ✨ Features
 
 - 🔍 **Auto-detects log format (Text / JSON)**  
