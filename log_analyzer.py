@@ -202,7 +202,15 @@ def get_gemini_analysis(prompt, api_key):
     if not api_key: return "[AI ANALYSIS UNAVAILABLE: Gemini API Key not provided]"
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key={api_key}"
-        payload = {"contents": [{"parts": [{"text": prompt}]}]}
+        payload = {
+  "contents": [
+    {
+      "role": "user",
+      "parts": [{"text": "prompt"}]
+    }
+  ]
+}
+
         response = requests.post(url, json=payload, timeout=20)
         response.raise_for_status()
         candidates = response.json().get('candidates', [])
