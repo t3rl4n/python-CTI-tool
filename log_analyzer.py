@@ -151,31 +151,58 @@ def parse_log_file(filepath):
 
 # --- STAGE 2: CHECK IP REPUTATION (CTI) ---
 def check_abuseipdb(ip, api_key):
-    """Queries the AbuseIPDB API for an IP's reputation."""
-    if not api_key: return None
+    """Queries the AbuseIPDB API for an IP's reputation with extended details."""
+    if not api_key:
+        return None
     try:
         response = requests.get(
             'https://api.abuseipdb.com/api/v2/check',
             headers={'Key': api_key, 'Accept': 'application/json'},
-            params={'ipAddress': ip}, timeout=10
+            params={'ipAddress': ip, 'maxAgeInDays': 90, 'verbose': True},
+            timeout=10
         )
         response.raise_for_status()
         data = response.json().get('data', {})
-        return {'score': data.get('abuseConfidenceScore', 0), 'country': data.get('countryCode', 'N/A')}
-    except requests.RequestException: return None
+        return {
+            'score': data.get('abuseConfidenceScore', 0),
+            'totalReports': data.get('totalReports', 0),
+            'isp': data.get('isp', 'Unknown'),
+            'usageType': data.get('usageType', 'Unknown'),
+            'asn': data.get('asn', 'Unknown'),
+            'hostname': data.get('hostnames', ['N/A'])[0] if data.get('hostnames') else 'N/A',
+            'domain': data.get('domain', 'Unknown'),
+            'country': data.get('countryCode', 'N/A'),
+            'city': data.get('city', 'Unknown')
+        }
+    except requests.RequestException:
+        return None
+
 
 def check_virustotal(ip, api_key):
-    """Queries the VirusTotal API for an IP's reputation."""
-    if not api_key: return None
+    """Queries the VirusTotal API for an IP's reputation with extended details."""
+    if not api_key:
+        return None
     try:
         response = requests.get(
             f"https://www.virustotal.com/api/v3/ip_addresses/{ip}",
-            headers={'x-apikey': api_key}, timeout=10
+            headers={'x-apikey': api_key},
+            timeout=10
         )
         response.raise_for_status()
-        stats = response.json().get('data', {}).get('attributes', {}).get('last_analysis_stats', {})
-        return {'malicious': stats.get('malicious', 0), 'suspicious': stats.get('suspicious', 0)}
-    except requests.RequestException: return None
+        attributes = response.json().get('data', {}).get('attributes', {})
+        stats = attributes.get('last_analysis_stats', {})
+        
+        return {
+            'malicious': stats.get('malicious', 0),
+            'suspicious': stats.get('suspicious', 0),
+            'harmless': stats.get('harmless', 0),
+            'undetected': stats.get('undetected', 0),
+            'last_analysis': attributes.get('last_analysis_date', 'N/A'),
+            'categories': attributes.get('categories', {})  # extra info
+        }
+    except requests.RequestException:
+        return None
+
 
 def analyze_ips(ip_data, api_keys):
     """Analyzes a list of IPs using CTI sources and flags suspicious ones."""
@@ -281,10 +308,29 @@ def create_report(suspicious_ips, log_stats, api_keys):
             report_content += f"- **4xx Errors:** {ip_info['4xx_errors']}\n"
             if ip_info['cti_abuse']:
                 abuse = ip_info['cti_abuse']
-                report_content += f"- **AbuseIPDB:** Score: {abuse['score']}, Country: {abuse['country']}\n"
+                report_content += (
+                    f"- **AbuseIPDB:** Reported {abuse['totalReports']} times, "
+                    f"Score: {abuse['score']}%\n"
+                    f"- **ISP:** {abuse['isp']}\n"
+                    f"- **Usage Type:** {abuse['usageType']}\n"
+                    f"- **ASN:** {abuse['asn']}\n"
+                    f"- **Hostname:** {abuse['hostname']}\n"
+                    f"- **Domain:** {abuse['domain']}\n"
+                    f"- **Country/City:** {abuse['country']} / {abuse['city']}\n"
+                )
+
             if ip_info['cti_vt']:
                 vt = ip_info['cti_vt']
-                report_content += f"- **VirusTotal:** {vt['malicious']} malicious, {vt['suspicious']} suspicious detections\n"
+                report_content += (
+                    f"- **VirusTotal:** {vt['malicious']} malicious, "
+                    f"{vt['suspicious']} suspicious, "
+                    f"{vt['harmless']} harmless, "
+                    f"{vt['undetected']} undetected\n"
+                    f"- **Last Analysis Date:** {vt['last_analysis']}\n"
+                )
+                if vt['categories']:
+                    categories_str = ", ".join(f"{k}: {v}" for k, v in vt['categories'].items())
+                    report_content += f"- **Categories:** {categories_str}\n"
 
     for ext in ['txt', 'md']:
         report_path = os.path.join('reports', f'security_report_{timestamp}.{ext}')
