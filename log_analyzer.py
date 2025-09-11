@@ -11,6 +11,7 @@ from collections import defaultdict
 from colorama import Fore, Style, init
 import pyfiglet
 import random
+import time
 
 # --- Initialize Colorama ---
 init(autoreset=True)
@@ -244,32 +245,44 @@ def analyze_ips(ip_data, api_keys):
     return suspicious_ips
 
 # --- STAGE 3: EXPLAIN & REPORT ---
-def get_gemini_analysis(prompt, api_key):
-    """Gets a natural language explanation from the Google Gemini API."""
+import time
+
+def get_gemini_analysis(prompt, api_key, retries=3, timeout=40):
+    """Gets a natural language explanation from the Google Gemini API with retries and safe parsing."""
     if not api_key:
         return "[AI ANALYSIS UNAVAILABLE: Gemini API Key not provided]"
     if not prompt.strip():
         return "[AI ANALYSIS FAILED: Empty prompt]"
-    try:
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
-        payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
-        response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=20)
-        response.raise_for_status()
-        data = response.json()
 
-        # Try multiple formats safely
-        candidates = data.get('candidates', [])
-        if candidates:
-            content = candidates[0].get("content", {})
-            parts = content.get("parts", [])
-            if parts and "text" in parts[0]:
-                return parts[0]["text"].strip()
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
+    payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
 
-        return "[AI ANALYSIS FAILED: Unexpected response format]"
-    except requests.RequestException as e:
-        return f"[AI ANALYSIS FAILED: Network error - {e}]"
-    except Exception as e:
-        return f"[AI ANALYSIS FAILED: {e}]"
+    for attempt in range(1, retries + 1):
+        try:
+            response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=timeout)
+            response.raise_for_status()
+            data = response.json()
+
+            # Try to extract AI response safely
+            candidates = data.get('candidates', [])
+            if candidates:
+                content = candidates[0].get("content", {})
+                parts = content.get("parts", [])
+                if parts and isinstance(parts[0], dict) and "text" in parts[0]:
+                    return parts[0]["text"].strip()
+
+            return "[AI ANALYSIS FAILED: Unexpected response format]"
+
+        except requests.Timeout:
+            print(f"[WARNING] Gemini request timed out (attempt {attempt}/{retries}). Retrying...")
+            time.sleep(2)  # wait before retry
+        except requests.RequestException as e:
+            return f"[AI ANALYSIS FAILED: Network error - {e}]"
+        except Exception as e:
+            return f"[AI ANALYSIS FAILED: {e}]"
+
+    return "[AI ANALYSIS FAILED: All retries timed out]"
+
 
 def create_report(suspicious_ips, log_stats, api_keys):
     """Generates a final security report in TXT and Markdown formats."""
