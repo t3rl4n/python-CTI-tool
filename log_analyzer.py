@@ -53,6 +53,7 @@ def parse_text_log(line, pattern):
     log_parts = match.groupdict()
     return {
         'ip': log_parts.get('ip'),
+        'timestamp': log_parts.get('timestamp'),
         'status': int(log_parts.get('status', 0)),
         'user_agent': log_parts.get('user_agent', '-')
     }
@@ -67,6 +68,7 @@ def parse_json_log(line):
         log_entry = json.loads(json_str)
         return {
             'ip': log_entry.get('remote_addr'),
+            'timestamp': log_entry.get('time_local'),
             'status': int(log_entry.get('status', 0)),
             'user_agent': log_entry.get('user_agent', '-')
         }
@@ -103,7 +105,7 @@ def parse_log_file(filepath):
         return None, None
 
     # --- Data Aggregation Setup ---
-    ip_data = defaultdict(lambda: {'total_requests': 0, '4xx_errors': 0, 'user_agents': set()})
+    ip_data = defaultdict(lambda: {'total_requests': 0, '4xx_errors': 0, 'user_agents': set(), 'timestamps': []})
     total_requests, skipped_lines = 0, 0
     status_code_counts = defaultdict(int)
 
@@ -124,12 +126,14 @@ def parse_log_file(filepath):
                     skipped_lines += 1
                     continue
 
-                ip, status, ua = parsed_data['ip'], parsed_data['status'], parsed_data['user_agent']
+                ip, status, ua, ts = parsed_data['ip'], parsed_data['status'], parsed_data['user_agent'], parsed_data['timestamp']
                 ip_data[ip]['total_requests'] += 1
                 if 400 <= status < 500:
                     ip_data[ip]['4xx_errors'] += 1
                 if ua and ua != "-":
                     ip_data[ip]['user_agents'].add(ua)
+                if ts:
+                    ip_data[ip]['timestamps'].append(ts)
 
                 total_requests += 1
                 status_code_counts[status] += 1
@@ -248,24 +252,24 @@ def get_gemini_analysis(prompt, api_key):
         return "[AI ANALYSIS FAILED: Empty prompt]"
     try:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={api_key}"
-        payload = {
-            "contents": [
-                {
-                    "role": "user",
-                    "parts": [{"text": prompt}]
-                }
-            ]
-        }
+        payload = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
         response = requests.post(url, headers={"Content-Type": "application/json"}, json=payload, timeout=20)
         response.raise_for_status()
-        candidates = response.json().get('candidates', [])
-        if candidates and 'content' in candidates[0] and 'parts' in candidates[0]['content']:
-            return candidates[0]['content']['parts'][0]['text'].strip()
+        data = response.json()
+
+        # Try multiple formats safely
+        candidates = data.get('candidates', [])
+        if candidates:
+            content = candidates[0].get("content", {})
+            parts = content.get("parts", [])
+            if parts and "text" in parts[0]:
+                return parts[0]["text"].strip()
+
         return "[AI ANALYSIS FAILED: Unexpected response format]"
     except requests.RequestException as e:
         return f"[AI ANALYSIS FAILED: Network error - {e}]"
-    except (KeyError, IndexError):
-        return "[AI ANALYSIS FAILED: Could not parse API response]"
+    except Exception as e:
+        return f"[AI ANALYSIS FAILED: {e}]"
 
 def create_report(suspicious_ips, log_stats, api_keys):
     """Generates a final security report in TXT and Markdown formats."""
@@ -306,6 +310,8 @@ def create_report(suspicious_ips, log_stats, api_keys):
             report_content += f"- **Reasons for Flagging:** {', '.join(ip_info['reasons'])}\n"
             report_content += f"- **Total Requests:** {ip_info['total_requests']}\n"
             report_content += f"- **4xx Errors:** {ip_info['4xx_errors']}\n"
+            if ip_info['timestamps']:
+                report_content += f"- **Timestamps (first 3 shown):** {', '.join(ip_info['timestamps'][:3])} ...\n"
             if ip_info['cti_abuse']:
                 abuse = ip_info['cti_abuse']
                 report_content += (
