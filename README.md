@@ -1,3 +1,8 @@
+# 🛡️ Python CTI Log Analyzer
+
+A Python-based tool for automated **web server log analysis**, **Cyber Threat Intelligence (CTI) enrichment**, and **AI-powered reporting**.  
+It is designed to help SOC analysts quickly identify suspicious activity from access logs and generate clear, manager-friendly reports.
+
 ## ✨ Features
 
 - 🔍 **Auto-detects log format (Text / JSON)**  
@@ -49,4 +54,5 @@ Install the necessary Python libraries with a single command.
 pip install -r requirements.txt
 
 Execute the script and provide the path to the access.log file you wish to analyze.
+
 python3 log_analyzer.py /path/to/access.log
